@@ -1,0 +1,6 @@
+*.swp
+*.pyc
+*.class
+*.o
+.DS_Store
+Image Uploaded*
