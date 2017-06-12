@@ -1,6 +1,6 @@
 # On being a type-heavy Scheme programmer in InfoSec
 
-or, how I learnt to hate everything, & love better type systems.
+or, **how I learnt to hate everything, & love better type systems.**
 
 ---
 
@@ -21,7 +21,7 @@ how do we use types, HOFs, &c. to model not safety, but rather violence?
 other talks:
 
 - "On Being Eeyore in InfoSec"
-- "Make Love! The lojikil way"
+- "Make Love! The lojikil way, part 0: numeric algorithms"
 - "A Heraclitus Seminar: the top 5 things I want mobile devs to stop doing, via Heraclitus"
 
 ---
@@ -119,11 +119,64 @@ _kinda like all those security controls I tell clients to replace with models, F
 
 ---
 
-# DNS demo
+# DNS Enumeration
+
+```
+for domain in domains:
+  print "echo ", domain
+  print "echo '; BEGIN {0}' >> dnsreport".format(domain)
+  print "dig @{0} {1} >> dnsreport".format(servers[idx], 
+  					   domain)
+  print "echo '; END {0}' >> dnsreport".format(domain)
+  for prefix in prefixes:
+    name = "{0}.{1}".format(prefix, domain)
+    print "echo ", name
+    print "echo '; BEGIN {0}' >> dnsreport".format(name)
+    print "dig @{0} {1} >> dnsreport".format(servers[idx], 
+    				 	     name)
+    print "echo '; END {0}' >> dnsreport".format(name)
+
+    idx += 1
+
+    if idx >= len(servers):
+      print "sleep 10"
+      idx = 0
+```
 
 ---
 
-# IP demos
+# DNS Enumeration
+
+1. `gendig.py`
+1. `dig2sqlite`
+1. any other processes read from SQLite
+
+---
+
+# DNS Enumeration -- Fixed
+
+```
+case class DNSCNameRecord(ttl: Int, 
+tag: String, 
+value: String, 
+address: IPAddress) extends DNSRecord;
+
+case class DNSARecord(ttl: Int, 
+tag: String, 
+value: String, 
+address: IPAddress) extends DNSRecord;
+
+// generate FQDNs from word list
+def foldNames(baseDomain: String ...): List[String] = ...
+
+// various query engines...
+def queryDig(domain: String, 
+	type: DNSRecordType): DNSRecord
+def queryInternal(dom: String, 
+	type: DNSRecordType): DNSRecord
+
+// . . .
+```
 
 ---
 
@@ -134,10 +187,6 @@ chained:
 - self-XSS
 - CSRF
 - HTTPOnly cookie
-
----
-
-# SMTP demo
 
 ---
 
