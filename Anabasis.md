@@ -86,6 +86,12 @@ _exempli gratia_: "big data"
 
 ---
 
+# Tools
+
+- {protocol, serialization} fuzzers
+- 
+---
+
 # Hate Everything
 
 - untennable 

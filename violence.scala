@@ -24,8 +24,8 @@ sealed trait IPAddress {
      */
     val ip: String
 }
-case class IPv4(ip: String) extends IPAddress
-case class IPv6(ip: String) extends IPAddress
+case class IPv4(val ip: String) extends IPAddress
+case class IPv6(val ip: String) extends IPAddress
 
 /*
  * represent a subset of the DNS record
@@ -48,18 +48,26 @@ case object DNSA extends DNSRecordType;
 case object DNSAAA extends DNSRecordType;
 case object DNSTXT extends DNSRecordType;
 
+/*
+ * Simple DNS record holder; holds basic
+ * info you would get out of a DNS query,
+ * such as time to live (TTL), but also
+ * include a "tag," which we can modify
+ * and tag with data as needed. This will
+ * allow us to tag sources, or the like.
+ */
 sealed trait DNSRecord {
     val ttl : Int;
-    val tag : String;
+    var tag : String;
     val value : String;
     val address : IPAddress;
 }
-case class DNSSOARecord(ttl: Int, tag: String, value: String, address: IPAddress) extends DNSRecord;
-case class DNSMXRecord(ttl: Int, tag: String, value: String, address: IPAddress) extends DNSRecord;
-case class DNSCNameRecord(ttl: Int, tag: String, value: String, address: IPAddress) extends DNSRecord;
-case class DNSARecord(ttl: Int, tag: String, value: String, address: IPAddress) extends DNSRecord;
-case class DNSAAAARecord(ttl: Int, tag: String, value: String, address: IPAddress) extends DNSRecord;
-case class DNSTXTRecord(ttl: Int, tag: String, value: String, address: IPAddress) extends DNSRecord;
+case class DNSSOARecord(val ttl: Int, var tag: String, val value: String, val address: IPAddress) extends DNSRecord;
+case class DNSMXRecord(val ttl: Int, var tag: String, val value: String, val address: IPAddress) extends DNSRecord;
+case class DNSCNameRecord(val ttl: Int, var tag: String, val value: String, val address: IPAddress) extends DNSRecord;
+case class DNSARecord(val ttl: Int, var tag: String, val value: String, val address: IPAddress) extends DNSRecord;
+case class DNSAAAARecord(val ttl: Int, var tag: String, val value: String, val address: IPAddress) extends DNSRecord;
+case class DNSTXTRecord(val ttl: Int, var tag: String, val value: String, val address: IPAddress) extends DNSRecord;
 
 /*
  * So the idea here is that we want to
@@ -106,7 +114,7 @@ def queryDig(dom: String, recordType: DNSRecordType = DNSA, tag: String = ""): O
  * fact.
  */
 
-class Location(val ip: IPAddress, val dns: DNSRecord)
+class Location(val ip: IPAddress, var dns: DNSRecord, var tag: String)
 
 /* A "service" is then combines a location with
  * a known-bound port.
@@ -122,7 +130,7 @@ case object ProtocolUDP extends IPProto
 case object ProtocolSCTP extends IPProto
 case object ProtocolAny extends IPProto
 
-class Service(val location: Location,val port: Int, val protocol: IPProto)
+class Service(val location: Location, val port: Int, val protocol: IPProto, var tag: String = "")
 
 /* Having built up locations, services, &c. now we can build
  * simple scanners. Really, a few options to be had
