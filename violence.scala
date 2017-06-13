@@ -1,4 +1,5 @@
-import java.net.InetAddress // for our "internal" resolver
+import java.net.{InetAddress, Socket, ConnectException}
+import scala.collection.mutable.ListBuffer
 
 /* let's setup some simple models here in Scala.
  * for the most part, I'm assuming the easiest 
@@ -14,12 +15,13 @@ import java.net.InetAddress // for our "internal" resolver
  * use Scala so heavily at nVisium.
  */
 sealed trait IPAddress {
-    // honestly not the best; could be 
-    // broken down several ways, including
-    // as integer (easy to check if someting
-    // is within a CIDR that way!). However,
-    // this works for cheap & dirty code to 
-    // support a talk.
+    /* honestly not the best; could be 
+     * broken down several ways, including
+     * as integer (easy to check if someting
+     * is within a CIDR that way!). However,
+     * this works for cheap & dirty code to 
+     * support a talk.
+     */
     val ip: String
 }
 case class IPv4(ip: String) extends IPAddress
@@ -91,4 +93,87 @@ def queryInternal(dom: String, recordType: DNSRecordType = DNSA, tag: String = "
 
 def queryDig(dom: String, recordType: DNSRecordType = DNSA, tag: String = ""): Option[Array[DNSRecord]] = {
     queryInternal(dom, recordType, tag)
+}
+
+/* A "location" is something that combines the
+ * IP address and a DNS record. Why not one or
+ * the other? Because on certain assessments we
+ * may only have one or the other, and as well,
+ * we may discover them at different times. For
+ * example, say we have an IP address of 
+ * 192.168.150.7; that host may be running services
+ * such as web, FTP, &c. that reveal DNS after the 
+ * fact.
+ */
+
+class Location(val ip: IPAddress, val dns: DNSRecord)
+
+/* A "service" is then combines a location with
+ * a known-bound port.
+ *
+ * first, of course, we have some house keeping
+ * to store _what kind_ of protocol we're 
+ * dealing with.
+ */
+
+sealed trait IPProto
+case object ProtocolTCP extends IPProto
+case object ProtocolUDP extends IPProto
+case object ProtocolSCTP extends IPProto
+case object ProtocolAny extends IPProto
+
+class Service(val location: Location,val port: Int, val protocol: IPProto)
+
+/* Having built up locations, services, &c. now we can build
+ * simple scanners. Really, a few options to be had
+ * here:
+ *
+ * - an internal simple scanner (ala connect scanner).
+ * - shell out to a "real" scanner.
+ * 
+ * In either case, we want to store our service accesses as
+ * Services, and then process those services for further 
+ * exploit.
+ */
+
+def scanInternal(locations: Array[Location], protocol: IPProto): Option[Array[Service]] = {
+    /* super simple connect scanner, for the "top fast ports"
+     * nothing complicated, but also not something you'd want
+     * to use if better options are available.
+     * of course, this should work on even the
+     * most restricted of envs that still 
+     * support Scala proper. Even if you stick
+     * to Scala, there is so many better ways to
+     * write this; however, from a pure "infosec will
+     * grasp right away" stance, it's great.
+     */
+
+    // interestingly, 23 & 25 were hanging at home.
+    val shortPorts = Array(1, 7, 9, 21, 22, 80, 81, 110, 111, 115, 443, 8080, 8088, 8443, 8181, 8081)
+    val results = ListBuffer[Service]()
+    for(location <- locations) {
+        for(curPort <- shortPorts) {
+            try {
+                println("[!] scanning " + location.ip.ip + " port " + curPort)
+                val t = new Socket(location.ip.ip, curPort)
+                t.close()
+                results += new Service(location, curPort, protocol)
+                println("added open port")
+            } catch {
+                case ce: ConnectException => None  
+            }
+        }
+    }
+
+    // HACK: this entire method could be done
+    // much more nicely, but... here we are.
+    if(results.isEmpty) {
+        None
+    } else {
+        Some(results.toArray)
+    }
+}
+
+def scanNmap(locations: Array[Location], protocol: IPProto, nmapOpts: String = ""): Option[Array[Service]] = {
+    None
 }
