@@ -4,16 +4,6 @@ or, **how I learnt to hate everything, & love better type systems.**
 
 ---
 
-- Intro
-- Warnings about your brave speaker
-- Hate everything. . . 
-	- Current infosec problems
-	- Current Aproaches 
-- And Love FP/types
-- Future directions 
-
----
-
 # tl;dw
 
 how do we use types, HOFs, &c. to model not safety, but rather violence?
@@ -28,6 +18,9 @@ other talks:
 
 ![Violence](/Users/stefan.edwards/Code/xenophon-curryon/exploits.png)
 
+_Stefan Edwards_ (@lojikil on {github, twitter, lobste.rs, ...})
+https://nvisium.com/about/#StefanEdwards
+
 ---
 
 ![I'm deaf](/Users/stefan.edwards/Code/xenophon-curryon/deaf.jpg)
@@ -40,13 +33,52 @@ _Yes, we really tawk liek dis. Wanna fite 'bout it?_
 
 ---
 
-# Hate everything
-
-## a long, cacophonous symphony of _failure_
+# Hate everything: a long, cacophonous symphony of _failure_
 
 - adversarial approach (opaque box, "red team")
 - find and exploit "chains"
 - inform client of what the chain _was_
+
+---
+
+# Tools
+
+- {protocol, application} fuzzers
+- {SAST, DAST} scanners
+- documentation generators
+
+---
+
+# Tools
+
+- `ToolA | ToolB`
+- < 100 SLoC
+
+---
+
+# Tools: DNS Enumeration
+
+```
+for domain in domains:
+  print "echo ", domain
+  print "echo '; BEGIN {0}' >> dnsreport".format(domain)
+  print "dig @{0} {1} >> dnsreport".format(servers[idx], 
+  					   domain)
+  print "echo '; END {0}' >> dnsreport".format(domain)
+  for prefix in prefixes:
+    name = "{0}.{1}".format(prefix, domain)
+    print "echo ", name
+    print "echo '; BEGIN {0}' >> dnsreport".format(name)
+    print "dig @{0} {1} >> dnsreport".format(servers[idx], 
+    				 	     name)
+    print "echo '; END {0}' >> dnsreport".format(name)
+
+    idx += 1
+
+    if idx >= len(servers):
+      print "sleep 10"
+      idx = 0
+```
 
 ---
 
@@ -89,7 +121,10 @@ _exempli gratia_: "big data"
 # Tools
 
 - {protocol, serialization} fuzzers
-- 
+- scanners 
+- documentation generation
+- assistance
+
 ---
 
 # Hate Everything
