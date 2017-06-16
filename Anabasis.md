@@ -221,7 +221,8 @@ def queryInternal(dom: String,
 # Attacks == Models mod harm
 
 - Attack: `foldDNS("somedomain.com", domainPrefixs) andThen lookupDomains`
-- 
+- Model: `readBIND("/var/named/chroot/var/named/...")`
+- `val result : List[DNSRecord] = ...`
 
 ---
 
