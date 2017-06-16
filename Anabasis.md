@@ -8,11 +8,10 @@ or, **how I learnt to hate everything, & love better type systems.**
 
 how do we use types, HOFs, &c. to model not safety, but rather violence?
 
-other talks:
-
-- "On Being Eeyore in InfoSec"
-- "Make Love! The lojikil way, part 0: numeric algorithms"
-- "A Heraclitus Seminar: the top 5 things I want mobile devs to stop doing, via Heraclitus"
+- support programming in the small
+- whilst linearzing our attack flows
+- resulting in _roughly_ the sample code density
+- with better understanding
 
 ---
 
@@ -22,7 +21,7 @@ _Stefan Edwards_ (@lojikil on {github, twitter, lobste.rs, ...})
 https://nvisium.com/about/#StefanEdwards
 
 ---
-
+	
 ![I'm deaf](/Users/stefan.edwards/Code/xenophon-curryon/deaf.jpg)
 
 ---
@@ -30,6 +29,14 @@ https://nvisium.com/about/#StefanEdwards
 ![I'm from Noo Yawk](/Users/stefan.edwards/Code/xenophon-curryon/nooyawk.png)
 
 _Yes, we really tawk liek dis. Wanna fite 'bout it?_
+
+---
+
+# FP: large vs small
+
+- known good: large
+    - nVP, quants, &c.
+- small?  
 
 ---
 
@@ -53,6 +60,18 @@ _Yes, we really tawk liek dis. Wanna fite 'bout it?_
 
 - `ToolA | ToolB`
 - < 100 SLoC
+
+---
+
+# Tools: Example
+
+- DNS enumeration (subdomain brute force)
+- find all publicly-known subdomains
+    - www0.somedomain.com
+    - www1.somedomain.com
+    - test-www.somedomain.com
+    - origin-www.somedomain.com
+    - ...
 
 ---
 
@@ -82,7 +101,25 @@ for domain in domains:
 
 ---
 
-# Hate everything
+# Tools
+
+```
+$ python gen_dig.py prefixes domains > dig_domains.sh
+$ sh dig_domains > dig_report.dat
+$ dig2sqlite dig_report.dat $CLIENT.db
+
+```
+
+---
+
+# Tools - Problems
+
+- execution path
+- needle in the haystack
+
+---
+
+# Hate everything - execution path
 
 _exempli gratia_: the existential threat
 
@@ -93,17 +130,7 @@ _Side Note: I also stole the red team manual from the client's desk whilst on si
 
 ---
 
-# Hate Everything
-
-Problems:
-
-- Command Line hacks: `python something.py | awk 'BEGIN { FS="..." } {...} > dump && nmap -A -sSUV -vvv -Pn -iL dump ...`
-- Tons of data
-- `.bash_history` != exploit chain
-
----
-
-# Hate Everything
+# Hate Everything - needle in the hay stack
 
 _exempli gratia_: "big data"
 
@@ -111,19 +138,12 @@ _exempli gratia_: "big data"
 - Source DNS => IP ranges
 - Confirm IP ranges (50+ CIDRs, ~3k IPs)
 - Hosts, Services, Applications, Infrastructure, &c. &c. &c.
+- **40 GiB** of data
 
 > Client: Hey, can you give us a listing of every application found?
 > Me: of course!
 > _back to bash & grepping through data files & tool output_
 
----
-
-# Tools
-
-- {protocol, serialization} fuzzers
-- scanners 
-- documentation generation
-- assistance
 
 ---
 
@@ -137,6 +157,17 @@ _exempli gratia_: "big data"
 
 
 _kinda like all those security controls I tell clients to replace with models, FP, & types..._
+
+---
+
+# Hate Everything
+
+```
+grep -i etag lovetz.txt | grep -v firefox | 
+sed -e 's/\[\!\] ETag in response: //' 
+-e 's/ for /,/' -e 's/http:\/\///' 
+-e 's/https:\/\///' -e 's/\//,\//' -e 's/"//g'
+```
 
 ---
 
@@ -160,40 +191,6 @@ _kinda like all those security controls I tell clients to replace with models, F
 
 ---
 
-# DNS Enumeration
-
-```
-for domain in domains:
-  print "echo ", domain
-  print "echo '; BEGIN {0}' >> dnsreport".format(domain)
-  print "dig @{0} {1} >> dnsreport".format(servers[idx], 
-  					   domain)
-  print "echo '; END {0}' >> dnsreport".format(domain)
-  for prefix in prefixes:
-    name = "{0}.{1}".format(prefix, domain)
-    print "echo ", name
-    print "echo '; BEGIN {0}' >> dnsreport".format(name)
-    print "dig @{0} {1} >> dnsreport".format(servers[idx], 
-    				 	     name)
-    print "echo '; END {0}' >> dnsreport".format(name)
-
-    idx += 1
-
-    if idx >= len(servers):
-      print "sleep 10"
-      idx = 0
-```
-
----
-
-# DNS Enumeration
-
-1. `gendig.py`
-1. `dig2sqlite`
-1. any other processes read from SQLite
-
----
-
 # DNS Enumeration -- Fixed
 
 ```
@@ -212,12 +209,19 @@ def foldNames(baseDomain: String ...): List[String] = ...
 
 // various query engines...
 def queryDig(domain: String, 
-	type: DNSRecordType): DNSRecord
+	type: DNSRecordType): Option[Array[DNSRecord]]
 def queryInternal(dom: String, 
-	type: DNSRecordType): DNSRecord
+	type: DNSRecordType): Option[Array[DNSRecord]]
 
 // . . .
 ```
+
+---
+
+# Attacks == Models mod harm
+
+- Attack: `foldDNS("somedomain.com", domainPrefixs) andThen lookupDomains`
+- 
 
 ---
 

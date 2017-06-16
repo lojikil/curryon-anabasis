@@ -1,6 +1,8 @@
 import java.net.{InetAddress, Socket, ConnectException}
 import scala.collection.mutable.ListBuffer
 
+def $$[A, B](x: A, f: A => B): B = f(x)
+
 /* let's setup some simple models here in Scala.
  * for the most part, I'm assuming the easiest 
  * implementation of much of what I'm talking about.
@@ -79,7 +81,7 @@ case class DNSTXTRecord(val ttl: Int, var tag: String, val value: String, val ad
  * Also, subDomains could be anything
  * Seq-able.
  */
-def foldNames(baseDN: String, subDomains: List[String]): List[String] = subDomains map (_ + "." + baseDN) 
+def foldNames(baseDN: String, subDomains: Array[String]): Array[String] = subDomains map (_ + "." + baseDN) 
 
 /* simple helper methods for creating DNSRecords */
 def makeCName(ttl: Int = -1, tag: String = "")(value: InetAddress): DNSCNameRecord = {
@@ -102,6 +104,8 @@ def queryInternal(dom: String, recordType: DNSRecordType = DNSA, tag: String = "
 def queryDig(dom: String, recordType: DNSRecordType = DNSA, tag: String = ""): Option[Array[DNSRecord]] = {
     queryInternal(dom, recordType, tag)
 }
+
+def lookupDomainsInternal(domains: Array[String]) = domains.flatMap(x => queryInternal(x, DNSA)).flatten
 
 /* A "location" is something that combines the
  * IP address and a DNS record. Why not one or
@@ -185,3 +189,55 @@ def scanInternal(locations: Array[Location], protocol: IPProto): Option[Array[Se
 def scanNmap(locations: Array[Location], protocol: IPProto, nmapOpts: String = ""): Option[Array[Service]] = {
     None
 }
+
+/* Let's talk about the world wide web (interwebbernetz).
+ * HTTP itself is actually a fairly simple protocol to
+ * model; interactions with servers are fairly straight
+ * forward to create & read, and a simple client
+ * isn't more than say an hour or two's worth of work.
+ *
+ * So let's start!
+ * 
+ * we need:
+ * - 'application/x-www-form-urlencoded', which we can reuse
+ *   for both query strings & form bodies.
+ * - 'text/plain', which we'll use for text uploads
+ * - support for cookies
+ * - support for headers (Basically maps)
+ * - support for various verbs (e.g. GET, POST, ...)
+ * - and parsing responses of the same.
+ * 
+ * now you may be asking "Loji, why write your own?"
+ * that's a great question! The reason is that we want
+ * to be able to support other, HTTP-like protocols,
+ * beyond what, say, Scalaj supports. This is perfect
+ * for fuzzing, as well as supporting other protocols
+ * quickly and easily.
+ */
+
+class Cookie(val name: String = "",
+    val value: String = "",
+    val expiry: String = "",
+    val path: String = "",
+    val domain: String = "",
+    val httpOnly: Boolean = false,
+    val secure: Boolean = false)
+    /* not going to support the more
+     * modern cookie flags, although
+     * adding support wouldn't be
+     * overly difficult.
+     */
+
+class HTTPRequest(val host: Service,
+                  val descriptor: String,
+                  val cookies: Array[Cookie],
+                  val data : Map[String, String],
+                  val headers: Map[String, String],
+                  val httpver: String = "HTTP/1.1")
+
+class HTTPResponse(val statusline: String,
+                   val statuscode: Int,
+                   val statusmesg: String,
+                   val httpver: String,
+                   val headers: Map[String, String],
+                   val body: String)
