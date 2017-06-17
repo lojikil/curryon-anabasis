@@ -210,13 +210,29 @@ def queryInternal(dom: String,
 
 ---
 
-# Web demos
+# Attacks == Models mod harm
 
-chained:
-- web service
-- self-XSS
-- CSRF
-- HTTPOnly cookie
+- **one** set of documentation tools
+- **one** set of processing tools
+- _simple and composable_
+
+---
+
+# Let's Play a game
+
+there is a CTF on r.lojikil.com **somewhere**, here is your attack chain:
+1. service discovery
+1. SSRF
+1. self-XSS
+1. HTTPOnly cookie theft
+
+---
+
+# My model/attack
+
+```
+
+```
 
 ---
 
