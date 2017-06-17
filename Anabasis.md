@@ -4,17 +4,6 @@ or, **how I learnt to hate everything, & love better type systems.**
 
 ---
 
-# tl;dw
-
-how do we use types, HOFs, &c. to model not safety, but rather violence?
-
-- support programming in the small
-- whilst linearzing our attack flows
-- resulting in _roughly_ the sample code density
-- with better understanding
-
----
-
 ![Violence](/Users/stefan.edwards/Code/xenophon-curryon/exploits.png)
 
 _Stefan Edwards_ (@lojikil on {github, twitter, lobste.rs, ...})
@@ -32,27 +21,40 @@ _Yes, we really tawk liek dis. Wanna fite 'bout it?_
 
 ---
 
-# FP: large vs small
+# tl;dw
 
-- known good: large
-    - nVP, quants, &c.
-- small?  
+how do we use types, HOFs, &c. to model not safety, but rather violence?
+
+- support programming in the small
+- whilst linearzing our attack flows
+- resulting in _roughly_ the sample code density
+- with better understanding
+
+mainly, let's talk tools
+
+---
+
+# Tools - I write _a lot_ of 'em
+
+- {protocol, application} fuzzers
+- {SAST, DAST} scanners
+- documentation generators
 
 ---
 
 # Hate everything: a long, cacophonous symphony of _failure_
 
-- adversarial approach (opaque box, "red team")
-- find and exploit "chains"
+- adversarial approach (opaque box, "red team"): minimal/no info
+- find and exploit "chains": DNS => Web 'sploits
 - inform client of what the chain _was_
 
 ---
 
-# Tools
+# FP: large vs small
 
-- {protocol, application} fuzzers
-- {SAST, DAST} scanners
-- documentation generators
+- known good: large
+    - nVP, quants, &c.
+- small? 
 
 ---
 
@@ -119,34 +121,6 @@ $ dig2sqlite dig_report.dat $CLIENT.db
 
 ---
 
-# Hate everything - execution path
-
-_exempli gratia_: the existential threat
-
-`Employee Machine` => `Running Application` => `Notice app prints server name` => `CVS access` => **`2.3 GiB of application source code`**
-
-
-_Side Note: I also stole the red team manual from the client's desk whilst on site. Mo' scope, mo problems._
-
----
-
-# Hate Everything - needle in the hay stack
-
-_exempli gratia_: "big data"
-
-- Client name
-- Source DNS => IP ranges
-- Confirm IP ranges (50+ CIDRs, ~3k IPs)
-- Hosts, Services, Applications, Infrastructure, &c. &c. &c.
-- **40 GiB** of data
-
-> Client: Hey, can you give us a listing of every application found?
-> Me: of course!
-> _back to bash & grepping through data files & tool output_
-
-
----
-
 # Hate Everything
 
 - untennable 
@@ -191,6 +165,16 @@ sed -e 's/\[\!\] ETag in response: //'
 
 ---
 
+# and love functional programming & types
+
+- DNS enumeration
+- port scanning
+- Web client
+- CSRF PoC generator
+- (simple) Spider
+
+---
+
 # DNS Enumeration -- Fixed
 
 ```
@@ -205,7 +189,7 @@ value: String,
 address: IPAddress) extends DNSRecord;
 
 // generate FQDNs from word list
-def foldNames(baseDomain: String ...): List[String] = ...
+def foldNames(baseDomain: String ...): Array[String] = ...
 
 // various query engines...
 def queryDig(domain: String, 

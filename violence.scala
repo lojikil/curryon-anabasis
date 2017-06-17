@@ -1,7 +1,10 @@
-import java.net.{InetAddress, Socket, ConnectException}
+import java.net.{InetAddress, Socket, ConnectException, URLEncoder, URLDecoder}
+import java.io.{BufferedReader, InputStreamReader}
+import scala.util.control.Breaks._
 import scala.collection.mutable.ListBuffer
 
 def $$[A, B](x: A, f: A => B): B = f(x)
+def manOf[T: Manifest](t: T): Manifest[T] = manifest[T]
 
 /* let's setup some simple models here in Scala.
  * for the most part, I'm assuming the easiest 
@@ -85,6 +88,7 @@ def foldNames(baseDN: String, subDomains: Array[String]): Array[String] = subDom
 
 /* simple helper methods for creating DNSRecords */
 def makeCName(ttl: Int = -1, tag: String = "")(value: InetAddress): DNSCNameRecord = {
+    // actually should create A name records...
     DNSCNameRecord(ttl, tag, value.getHostName, IPv4(value.getHostAddress))
 }
 
@@ -118,7 +122,7 @@ def lookupDomainsInternal(domains: Array[String]) = domains.flatMap(x => queryIn
  * fact.
  */
 
-class Location(val ip: IPAddress, var dns: DNSRecord, var tag: String)
+class Location(val ip: IPAddress, var dns: Option[DNSRecord], var tag: String = "")
 
 /* A "service" is then combines a location with
  * a known-bound port.
@@ -135,6 +139,17 @@ case object ProtocolSCTP extends IPProto
 case object ProtocolAny extends IPProto
 
 class Service(val location: Location, val port: Int, val protocol: IPProto, var tag: String = "")
+
+def makeNamedService(host: String, port: Int, proto: IPProto = ProtocolTCP, tag: String = ""): Option[Service] = {
+    queryInternal(host, DNSA) match {
+        case Some(dnsrec) => {
+            val rec = dnsrec(0)
+            val loc = new Location(rec.address, Some(rec))
+            Some(new Service(loc, port, proto, tag))
+        }
+        case None => None
+    }
+}
 
 /* Having built up locations, services, &c. now we can build
  * simple scanners. Really, a few options to be had
@@ -228,16 +243,161 @@ class Cookie(val name: String = "",
      * overly difficult.
      */
 
+/* a simple improvement to these 
+ * would be to make a MimeContainer
+ * trait, and then add specific 
+ * implementations thereof. That way,
+ * when reifying/deifying HTTPRequests
+ * and HTTPResponses you can easily
+ * have multiple types of data.
+ * for now, it's a bit more manual.
+ */
+
 class HTTPRequest(val host: Service,
+                  val method: String,
                   val descriptor: String,
-                  val cookies: Array[Cookie],
-                  val data : Map[String, String],
                   val headers: Map[String, String],
+                  val qs: Option[Map[String, String]] = None,
+                  val cookies: Option[Array[Cookie]] = None,
+                  val data : Option[Map[String, String]] = None,
                   val httpver: String = "HTTP/1.1")
 
 class HTTPResponse(val statusline: String,
                    val statuscode: Int,
-                   val statusmesg: String,
+                   val statusmsg: String,
                    val httpver: String,
                    val headers: Map[String, String],
                    val body: String)
+
+/* now we have two helper functions to process
+ * query strings & application/x-www-form-urlencoded
+ * too. Technically "x-www..." would have %20 for 
+ * +, but it works "ok" for simple testing.
+ */
+def quoteqs(data: Map[String, String]): String = {
+    val result = new ListBuffer[String]()
+    for( (k, v) <- data) {
+        result += URLEncoder.encode(k, "UTF-8") + "=" + URLEncoder.encode(v, "UTF-8")
+    }
+
+    result.mkString("&")
+}
+
+def parseqs(qs: String): Map[String, String] = {
+    val items = qs.split("&")
+    val result = new ListBuffer[(String, String)] 
+    for( item <- items) {
+        val tmp = item.split("=")
+        result += ((URLDecoder.decode(tmp(0), "UTF-8"), URLDecoder.decode(tmp(1), "UTF-8")))
+    }
+    result.toMap
+}
+
+def deflateRequest(req: HTTPRequest): String = {
+    val result = new ListBuffer[String]
+
+    var qs: String = "";
+
+    req.qs match {
+        case Some(x) => qs = "?" + quoteqs(req.qs.get)
+        case None => qs = ""
+    }
+
+    result += req.method + " " + req.descriptor + qs + " " + req.httpver
+
+    for((k, v) <- req.headers) {
+        result += k + ": " + v
+    }
+
+    result += ""
+
+    req.data match {
+        case Some(body_data) => result += quoteqs(req.data.get)
+        case None => None
+    }
+
+    result += ""
+
+    result.mkString("\r\n")
+}
+
+/* this would be a *great* place for 
+ * monadic parser combinators, but I
+ * am not going to implement that just
+ * for this demo (tho I *WAS* tempted)
+ */
+def inflateResponse(rawResponse: String): HTTPResponse = {
+    val parts = rawResponse.split("\r\n\r\n")
+    val head = parts(0).split("\r\n")
+    val statusLine = head(0)
+    val rawHeaders = head.slice(1, head.length)
+    val headers = new ListBuffer[(String, String)]()
+
+    val tmpOffset0 = statusLine.indexOf(' ')
+    val tmpOffset1 = statusLine.indexOf(' ', tmpOffset0 + 1)
+
+    val httpVer = statusLine.slice(0, tmpOffset0)
+    val statusCode = Integer.parseInt(statusLine.slice(tmpOffset0 + 1, tmpOffset1))
+    val httpMsg = statusLine.slice(tmpOffset1 + 1, statusLine.length) 
+
+    for(header <- rawHeaders) {
+        val tmp = header.split(": ")
+        headers += ((tmp(0), tmp(1)))
+    }
+
+    new HTTPResponse(statusLine, statusCode, httpMsg, httpVer, headers.toMap, parts(1))
+}
+
+def doHTTP(svc: Service, method: String, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]], qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, clientHeaders: Option[Map[String, String]] = None): Option[HTTPResponse] = {
+    val hostName = svc.location.dns match {
+        case Some(record) => record.value
+        case None => svc.location.ip.ip
+    }
+    val port = svc.port
+    val address = svc.location.ip.ip
+    val defaultHeaders = Map("Connection" -> "close",
+                             "User-Agent" -> "Mozilla/5.0 (violent scala)",
+                             "Host" -> hostName)
+    val headers = clientHeaders match {
+        case Some(hds) => defaultHeaders ++ hds
+        case None => defaultHeaders
+    }
+    val req = new HTTPRequest(svc, method, descriptor, headers, qs, cookies, body, httpver)
+    val result = new ListBuffer[String]()
+    try {
+        val sock = new Socket(address, port)
+        val fdin = new BufferedReader(new InputStreamReader(sock.getInputStream()))
+        val fdout = sock.getOutputStream()
+        var line : String = ""
+        val rawRequest = deflateRequest(req)
+        fdout.write(rawRequest.getBytes())
+        while(line != null) {
+            line = fdin.readLine()
+            result += line
+        }
+        sock.close()
+        Some(inflateResponse(result.mkString("\r\n"))) 
+    } catch {
+        case e: Exception => None
+    }
+}
+
+def httpGet(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]], qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
+    doHTTP(svc, "GET", descriptor, httpver, cookies, qs, body, headers)
+}
+
+def httpPut(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]], qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
+    doHTTP(svc, "PUT", descriptor, httpver, cookies, qs, body, headers)
+}
+
+def httpPost(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]], qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
+    doHTTP(svc, "POST", descriptor, httpver, cookies, qs, body, headers) 
+}
+
+def httpDelete(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]], qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
+    doHTTP(svc, "DELETE", descriptor, httpver, cookies, qs, body, headers) 
+}
+
+def httpTrace(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]], qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
+    doHTTP(svc, "TRACE", descriptor, httpver, cookies, qs, body, headers) 
+}
