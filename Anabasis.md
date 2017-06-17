@@ -30,7 +30,7 @@ how do we use types, HOFs, &c. to model not safety, but rather violence?
 - resulting in _roughly_ the sample code density
 - with better understanding
 
-mainly, let's talk tools
+mainly, let's talk tools (and play a CTF)
 
 ---
 
@@ -47,14 +47,6 @@ mainly, let's talk tools
 - adversarial approach (opaque box, "red team"): minimal/no info
 - find and exploit "chains": DNS => Web 'sploits
 - inform client of what the chain _was_
-
----
-
-# FP: large vs small
-
-- known good: large
-    - nVP, quants, &c.
-- small? 
 
 ---
 
@@ -145,6 +137,14 @@ sed -e 's/\[\!\] ETag in response: //'
 
 ---
 
+# FP: large vs small
+
+- known good: large
+    - nVP, quants, &c.
+- small? 
+
+---
+
 # and love functional programming & types
 
 1. use defined processes & standards
@@ -172,6 +172,16 @@ sed -e 's/\[\!\] ETag in response: //'
 - Web client
 - CSRF PoC generator
 - (simple) Spider
+
+---
+
+# and love functional programming & types
+
+- DNS enumeration (**recon**)
+- port scanning (**discovery**)
+- Web client (**protocol/app fuzzing**)
+- CSRF PoC generator (**exploitation**)
+- (simple) Spider (**discovery**)
 
 ---
 

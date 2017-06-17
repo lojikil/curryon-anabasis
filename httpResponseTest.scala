@@ -8,6 +8,7 @@ Server: Apache/1.3.3.7 (Unix) (Red-Hat/Linux)
 ETag: "3f80f-1b6-3e1cb03b"
 Accept-Ranges: bytes
 Connection: close
+Set-Cookie: testCookie=testvalue
 
 <html>
 <head>

@@ -232,9 +232,9 @@ def scanNmap(locations: Array[Location], protocol: IPProto, nmapOpts: String = "
 
 class Cookie(val name: String = "",
     val value: String = "",
-    val expiry: String = "",
-    val path: String = "",
-    val domain: String = "",
+    val expiry: Option[String] = None,
+    val path: Option[String] = None,
+    val domain: Option[String] = None,
     val httpOnly: Boolean = false,
     val secure: Boolean = false)
     /* not going to support the more
@@ -242,6 +242,65 @@ class Cookie(val name: String = "",
      * adding support wouldn't be
      * overly difficult.
      */
+
+def deflateRequestCookies(cookies: Array[Cookie]): String = {
+    "Cookies: " + cookies.map((x: Cookie) => URLEncoder.encode(x.name, "UTF-8") + "=" + URLEncoder.encode(x.value, "UTF-8")).mkString(";")
+}
+
+def deflateResponseCookie(cookie: Cookie): String = {
+    val expiry = cookie.expiry match {
+        case Some(value) => ";expires=" + value
+        case None => ""
+    }
+    val domain = cookie.domain match {
+        case Some(value) => ";domain=" + value
+        case None => ""
+    }
+    val path = cookie.path match {
+        case Some(value) => ";path=" + value
+        case None => ""
+    }
+    val httponly = cookie.httpOnly match {
+        case true => ";httponly"
+        case false => ""
+    }
+    val secure = cookie.secure match {
+        case true => ";secure"
+        case false => ""
+    }
+    "Set-cookie " + URLEncoder.encode(cookie.name, "UTF-8") + "=" + URLEncoder.encode(cookie.value, "UTF-8") + expiry + domain + path + secure + httponly
+}
+
+def deflateResponseCookies(cookies: Array[Cookie]): String = {
+    cookies.map(deflateResponseCookie).mkString("\r\n")
+}
+
+def inflateRequestCookies(rawCookies: String): Option[Array[Cookie]] = {
+    None
+}
+
+def inflateResponseCookie(rawCookie: String): Option[Cookie] = {
+
+    if(!rawCookie.startsWith("Set-Cookie:")) {
+        None
+    } else {
+        val nameStart = rawCookie.indexOf(':')
+        val nameEnd = rawCookie.indexOf('=')
+        val name = rawCookie.slice(nameStart + 1, nameEnd).trim()
+        val valueEnd = rawCookie.indexOf(';', nameEnd + 1)
+        val value = valueEnd match {
+            case -1 => rawCookie.slice(nameEnd + 1, rawCookie.length)
+            case _ =>  rawCookie.slice(nameEnd + 1, valueEnd)
+        }
+        // something something other cookie values left as an 
+        // exercise to the reader XD
+        Some(new Cookie(name, value))
+    }
+}
+
+def inflateResponseCookies(rawCookies: String): Option[Array[Cookie]] = {
+    Some(rawCookies.split("\r\n").flatMap(inflateResponseCookie))
+}
 
 /* a simple improvement to these 
  * would be to make a MimeContainer
@@ -256,7 +315,7 @@ class Cookie(val name: String = "",
 class HTTPRequest(val host: Service,
                   val method: String,
                   val descriptor: String,
-                  val headers: Map[String, String],
+                  val headers: Option[Map[String, String]],
                   val qs: Option[Map[String, String]] = None,
                   val cookies: Option[Array[Cookie]] = None,
                   val data : Option[Map[String, String]] = None,
@@ -267,6 +326,7 @@ class HTTPResponse(val statusline: String,
                    val statusmsg: String,
                    val httpver: String,
                    val headers: Map[String, String],
+                   val cookies: Option[Array[Cookie]],
                    val body: String)
 
 /* now we have two helper functions to process
@@ -305,8 +365,16 @@ def deflateRequest(req: HTTPRequest): String = {
 
     result += req.method + " " + req.descriptor + qs + " " + req.httpver
 
-    for((k, v) <- req.headers) {
-        result += k + ": " + v
+    req.headers match{
+        case Some(hdrs) => for((k, v) <- hdrs) {
+            result += k + ": " + v
+        }
+        case None => None
+    }
+
+    req.cookies match {
+        case Some(jar) => result += deflateRequestCookies(jar)
+        case None =>
     }
 
     result += ""
@@ -339,13 +407,24 @@ def inflateResponse(rawResponse: String): HTTPResponse = {
     val httpVer = statusLine.slice(0, tmpOffset0)
     val statusCode = Integer.parseInt(statusLine.slice(tmpOffset0 + 1, tmpOffset1))
     val httpMsg = statusLine.slice(tmpOffset1 + 1, statusLine.length) 
+    val cookies = new ListBuffer[Cookie]
 
     for(header <- rawHeaders) {
         val tmp = header.split(": ")
-        headers += ((tmp(0), tmp(1)))
+        tmp(0) match {
+            case "Set-Cookie" => inflateResponseCookie(header) match {
+                case Some(cookie) => cookies += cookie
+                case None => None
+            }
+            case _ => headers += ((tmp(0), tmp(1)))
+        }
     }
 
-    new HTTPResponse(statusLine, statusCode, httpMsg, httpVer, headers.toMap, parts(1))
+    var finalCookies: Option[Array[Cookie]] = None
+    if(!cookies.isEmpty) {
+        finalCookies = Some(cookies.toArray)  
+    }
+    new HTTPResponse(statusLine, statusCode, httpMsg, httpVer, headers.toMap, finalCookies, parts(1))
 }
 
 def doHTTP(svc: Service, method: String, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]], qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, clientHeaders: Option[Map[String, String]] = None): Option[HTTPResponse] = {
@@ -362,7 +441,7 @@ def doHTTP(svc: Service, method: String, descriptor: String, httpver: String = "
         case Some(hds) => defaultHeaders ++ hds
         case None => defaultHeaders
     }
-    val req = new HTTPRequest(svc, method, descriptor, headers, qs, cookies, body, httpver)
+    val req = new HTTPRequest(svc, method, descriptor, Some(headers), qs, cookies, body, httpver)
     val result = new ListBuffer[String]()
     try {
         val sock = new Socket(address, port)
@@ -382,22 +461,22 @@ def doHTTP(svc: Service, method: String, descriptor: String, httpver: String = "
     }
 }
 
-def httpGet(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]], qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
+def httpGet(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]] = None, qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
     doHTTP(svc, "GET", descriptor, httpver, cookies, qs, body, headers)
 }
 
-def httpPut(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]], qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
+def httpPut(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]] = None, qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
     doHTTP(svc, "PUT", descriptor, httpver, cookies, qs, body, headers)
 }
 
-def httpPost(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]], qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
+def httpPost(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]] = None, qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
     doHTTP(svc, "POST", descriptor, httpver, cookies, qs, body, headers) 
 }
 
-def httpDelete(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]], qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
+def httpDelete(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]] = None, qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
     doHTTP(svc, "DELETE", descriptor, httpver, cookies, qs, body, headers) 
 }
 
-def httpTrace(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]], qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
+def httpTrace(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]] = None, qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
     doHTTP(svc, "TRACE", descriptor, httpver, cookies, qs, body, headers) 
 }
