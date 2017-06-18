@@ -20,7 +20,7 @@ session_opts = {
     'session.data_dir': './data',
     'session.auto': True
 }
-app = SessionMiddleware(app(), session_opts)
+app = SessionMiddleware(app, session_opts)
 
 run(port=8080,
     host='0.0.0.0',

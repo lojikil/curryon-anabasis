@@ -4,3 +4,6 @@
 *.o
 .DS_Store
 Image Uploaded*
+*.log
+*container*
+*.dat
