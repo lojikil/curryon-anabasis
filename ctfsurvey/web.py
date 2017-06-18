@@ -10,6 +10,7 @@ parentdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 template_cache = {}
 stripusername = re.compile('[^a-zA-Z0-9]*')
 badsurvey = re.compile('[^0-9\-a-z]')
+xsscheck = re.compile('\<\s*(script|img|div|b|p|object|i|em|style)\s*>', re.I)
 
 
 def checkreferer(ref):
@@ -24,6 +25,10 @@ def checkreferer(ref):
     else:
         redirect("/hacker")
 
+
+def checkantixss(data):
+    if xsscheck.search(data) is not None:
+        redirect("/hacker")
 
 @hook('before_request')
 def hostcheck():
@@ -110,7 +115,7 @@ def search():
 def create_view():
     if request.method == "POST":
         survey = request.POST.get("survey_form", "")
-        check_antixss(survey)
+        checkantixss(survey)
         survey_id = uuid.uuid4()
         with open('./forms/{0}.html'.format(survey_id), 'w') as fh:
             fh.write(survey)
@@ -126,9 +131,15 @@ def view_survey(surveyname):
         redirect('/hacker')
 
     if os.path.isfile('./forms/{0}.html'.format(surveyname)):
-        with open('./forms/{0}.html'.format(surveyname), 'r') as fh:
-            form = fh.read()
-        return template('view_survey', form=form)
+        if request.method == "POST":
+            form_data = request.body.read()
+            form_id = uuid.uuid4()
+            with open('./data/form-data/{0}-{1}.dat'.format(surveyname, form_id), 'w') as fh:
+                fh.write(form_data)
+        else:
+            with open('./forms/{0}.html'.format(surveyname), 'r') as fh:
+                form = fh.read()
+            return template('view_survey', survey=form)
     else:
         return template('no_such_survey')
 
