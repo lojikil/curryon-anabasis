@@ -35,12 +35,19 @@ def hostcheck():
     session = request.environ.get('beaker.session')
     path = request.urlparts.path
     ref = request.environ.get('HTTP_REFERER')
+    origin = request.environ.get('HTTP_ORIGIN')
     response.set_header('X-XSS-Protection', '0')
+
     if path != '/login' and path != '/signup' and 'loggedin' not in session:
         redirect('/login')
 
     if ref is not None:
         checkreferer(ref)
+    elif ref is None and request.method == "POST":
+        redirect("/hacker")
+
+    if origin is not None:
+        checkreferer(origin)
 
 
 @route('/login', method=['post', 'get'])

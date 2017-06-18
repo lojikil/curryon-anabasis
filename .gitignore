@@ -7,3 +7,4 @@ Image Uploaded*
 *.log
 *container*
 *.dat
+ctfsurvey/forms/*.html
