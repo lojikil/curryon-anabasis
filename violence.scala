@@ -321,6 +321,8 @@ class HTTPRequest(val host: Service,
                   val data : Option[Map[String, String]] = None,
                   val httpver: String = "HTTP/1.1")
 
+// probably should consider adding a 
+// service member to this as well.
 class HTTPResponse(val statusline: String,
                    val statuscode: Int,
                    val statusmsg: String,
@@ -358,6 +360,11 @@ def deflateRequest(req: HTTPRequest): String = {
 
     var qs: String = "";
 
+    val body = req.data match {
+        case Some(body_data) => Some(quoteqs(req.data.get))
+        case None => None
+    }
+
     req.qs match {
         case Some(x) => qs = "?" + quoteqs(req.qs.get)
         case None => qs = ""
@@ -372,6 +379,14 @@ def deflateRequest(req: HTTPRequest): String = {
         case None => None
     }
 
+    body match {
+        case Some(data) => {
+            result += "Content-Length: " + data.length
+            result += "Content-Type: application/x-www-urlencoded"
+        }
+        case None => None
+    }
+
     req.cookies match {
         case Some(jar) => result += deflateRequestCookies(jar)
         case None =>
@@ -379,8 +394,8 @@ def deflateRequest(req: HTTPRequest): String = {
 
     result += ""
 
-    req.data match {
-        case Some(body_data) => result += quoteqs(req.data.get)
+    body match {
+        case Some(data) => result += data
         case None => None
     }
 
@@ -408,6 +423,10 @@ def inflateResponse(rawResponse: String): HTTPResponse = {
     val statusCode = Integer.parseInt(statusLine.slice(tmpOffset0 + 1, tmpOffset1))
     val httpMsg = statusLine.slice(tmpOffset1 + 1, statusLine.length) 
     val cookies = new ListBuffer[Cookie]
+    val body = parts.length match {
+        case 1 => ""
+        case 2 => parts(1)
+    }
 
     for(header <- rawHeaders) {
         val tmp = header.split(": ")
@@ -424,7 +443,43 @@ def inflateResponse(rawResponse: String): HTTPResponse = {
     if(!cookies.isEmpty) {
         finalCookies = Some(cookies.toArray)  
     }
-    new HTTPResponse(statusLine, statusCode, httpMsg, httpVer, headers.toMap, finalCookies, parts(1))
+    new HTTPResponse(statusLine, statusCode, httpMsg, httpVer, headers.toMap, finalCookies, body)
+}
+
+def inflateRequest(rawRequest: String): HTTPRequest = {
+    val parts = rawRequest.split("\r\n\r\n")
+    val head = parts(0).split("\r\n")
+    val requestLine = head(0)
+    val rawHeaders = head.slice(1, head.length)
+    val headers = new ListBuffer[(String, String)]()
+    val body = parts.length match {
+        case 0 => None
+        case 1 => None
+        case 2 => Some(parseqs(parts(1)))
+    }
+    val requestParts = requestLine.split(' ')
+    val descriptParts = requestParts(1).split('?')
+    val qs = descriptParts.length match {
+        case 1 => None
+        case 2 => Some(parseqs(descriptParts(1)))
+    }
+
+    for(header <- rawHeaders) {
+        val tmp = header.split(": ")
+        headers += ((tmp(0), tmp(1)))
+    }
+
+    val finalHeaders = headers.toMap
+
+    val host = if(finalHeaders.contains("Host")) {
+        makeNamedService(finalHeaders("Host"), 80)
+    } else {
+        makeNamedService("example.org", 80)
+    }
+
+    new HTTPRequest(host.get, requestParts(0), descriptParts(0),
+                    Some(finalHeaders), qs, None, body,
+                    requestParts(2))
 }
 
 def doHTTP(svc: Service, method: String, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]], qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, clientHeaders: Option[Map[String, String]] = None): Option[HTTPResponse] = {
@@ -480,3 +535,40 @@ def httpDelete(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", c
 def httpTrace(svc: Service, descriptor: String, httpver: String = "HTTP/1.1", cookies: Option[Array[Cookie]] = None, qs: Option[Map[String, String]] = None, body: Option[Map[String, String]] = None, headers: Option[Map[String, String]] = None): Option[HTTPResponse] = {
     doHTTP(svc, "TRACE", descriptor, httpver, cookies, qs, body, headers) 
 }
+
+/* ok, so we have HTTP as a *protocol*
+ * all set, but what about the things
+ * that utiilze it? We can start to 
+ * model things like the *forms* and
+ * communication order that applications
+ * use atop HTTP
+ */
+
+def prettyPrintFormValues(k: String, v: String): String = {
+    val safeK = URLEncoder.encode(k, "UTF-8")
+    val safeV = URLEncoder.encode(v, "UTF-8") 
+    val label = "<label for='" + safeK + "'>" + safeK + "</label>"
+    val field = "<input type='text' name='" + safeK + "' value='" + safeV + "'>"
+    label + field + "<br>"
+}
+
+def inflateFormFromMap(params: Map[String, String]): String = params.map(x => x match { case (k, v) => prettyPrintFormValues(k, v) }).mkString("\n")
+
+def inflateForm(body: String): String = inflateFormFromMap(parseqs(body))
+
+def inflateFormFromPost(req: HTTPRequest): Option[String] = {
+    // technically, the same idea should work
+    // fine for PUT and other requests, but
+    // for now this is enough
+    if(!req.method.equals("POST")) {
+        None
+    } else {
+        req.data match {
+            case Some(data) => Some(inflateFormFromMap(data))
+            case None => None
+        }
+    }
+}
+
+
+

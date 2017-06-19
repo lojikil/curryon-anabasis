@@ -25,9 +25,10 @@ _Yes, we really tawk liek dis. Wanna fite 'bout it?_
 
 how do we use types, HOFs, &c. to model not safety, but rather violence?
 
+takeaways: 
 - support programming in the small
 - whilst linearzing our attack flows
-- resulting in _roughly_ the sample code density
+- resulting in _roughly_ the same code density
 - with better understanding
 
 mainly, let's talk tools (and play a CTF)
@@ -47,6 +48,19 @@ mainly, let's talk tools (and play a CTF)
 - adversarial approach (opaque box, "red team"): minimal/no info
 - find and exploit "chains": DNS => Web 'sploits
 - inform client of what the chain _was_
+- generally in **one week**
+
+---
+
+# Workflow:
+
+1. recon: client assets (human, machine, language, buildings, &c.)
+1. discover: actionable vulns
+1. exploit: attack vuln
+1. pivot: leverage new access
+1. GOTO 2.
+
+![NIST SP 800-115](NIST800-115.png)
 
 ---
 
@@ -57,7 +71,7 @@ mainly, let's talk tools (and play a CTF)
 
 ---
 
-# Tools: Example
+# Tool Example: DNS Enumeration
 
 - DNS enumeration (subdomain brute force)
 - find all publicly-known subdomains
@@ -69,7 +83,7 @@ mainly, let's talk tools (and play a CTF)
 
 ---
 
-# Tools: DNS Enumeration
+# Tool Example: DNS Enumeration
 
 ```
 for domain in domains:
@@ -95,25 +109,28 @@ for domain in domains:
 
 ---
 
-# Tools
+# Tool Example: DNS Enumeration
 
 ```
 $ python gen_dig.py prefixes domains > dig_domains.sh
 $ sh dig_domains > dig_report.dat
 $ dig2sqlite dig_report.dat $CLIENT.db
-
 ```
 
 ---
 
 # Tools - Problems
 
-- execution path
+- vuln focused
+- tiny collections of code w/o docs
+- stringly typed
+- execution path?
 - needle in the haystack
 
 ---
 
 # Hate Everything
+
 
 - untennable 
 - poorly understood
@@ -141,7 +158,10 @@ sed -e 's/\[\!\] ETag in response: //'
 
 - known good: large
     - nVP, quants, &c.
-- small? 
+- small?
+    - ~ learn Scala
+    - in one week
+    - and solve our workflows?
 
 ---
 
@@ -214,9 +234,10 @@ def queryInternal(dom: String,
 
 # Attacks == Models mod harm
 
-- Attack: `foldDNS("somedomain.com", domainPrefixs) andThen lookupDomains`
+- Attack: `foldNames("somedomain.com", domainPrefixs) andThen lookupDomains`
 - Model: `readBIND("/var/named/chroot/var/named/...")`
 - `val result : List[DNSRecord] = ...`
+- Apply standard validation/testing across both
 
 ---
 
