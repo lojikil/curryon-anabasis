@@ -1,5 +1,6 @@
 import java.net.{InetAddress, Socket, ConnectException, URLEncoder, URLDecoder}
 import java.io.{BufferedReader, InputStreamReader}
+import java.util.regex.{Matcher, Pattern}
 import scala.util.control.Breaks._
 import scala.collection.mutable.ListBuffer
 
@@ -140,14 +141,21 @@ case object ProtocolAny extends IPProto
 
 class Service(val location: Location, val port: Int, val protocol: IPProto, var tag: String = "")
 
-def makeNamedService(host: String, port: Int, proto: IPProto = ProtocolTCP, tag: String = ""): Option[Service] = {
-    queryInternal(host, DNSA) match {
-        case Some(dnsrec) => {
-            val rec = dnsrec(0)
-            val loc = new Location(rec.address, Some(rec))
+def makeNamedService(host: String, port: Int, address: Option[IPAddress] = None, proto: IPProto = ProtocolTCP, tag: String = ""): Option[Service] = {
+    address match {
+        case None => queryInternal(host, DNSA) match {
+                case Some(dnsrec) => {
+                    val rec = dnsrec(0)
+                    val loc = new Location(rec.address, Some(rec))
+                    Some(new Service(loc, port, proto, tag))
+                }
+                case None => None
+            }
+        case Some(ipaddr) => {
+            val rec = new DNSCNameRecord(-1, "", host, ipaddr)
+            val loc = new Location(ipaddr, Some(rec))
             Some(new Service(loc, port, proto, tag))
         }
-        case None => None
     }
 }
 
@@ -512,7 +520,7 @@ def doHTTP(svc: Service, method: String, descriptor: String, httpver: String = "
         sock.close()
         Some(inflateResponse(result.mkString("\r\n"))) 
     } catch {
-        case e: Exception => None
+        case e: Exception => println(e); None
     }
 }
 
@@ -560,6 +568,8 @@ def inflateFormFromPost(req: HTTPRequest): Option[String] = {
     // technically, the same idea should work
     // fine for PUT and other requests, but
     // for now this is enough
+    // also, could return more than just the inflated data
+    // could also work against GET with query strings
     if(!req.method.equals("POST")) {
         None
     } else {
@@ -570,5 +580,37 @@ def inflateFormFromPost(req: HTTPRequest): Option[String] = {
     }
 }
 
+/* hokay! So we've done some attack-types of activities
+ * at the application level (in OSI terms), now can we
+ * start to create simple attacks against the actual
+ * application *above* layer 7?
+ *
+ * The simplest is a Spider, of course. We can spider the
+ * application easily, and return the types of links
+ * we find therein. The below is one half of the spider 
+ * process, link discovery. To setup the full process,
+ * we would just really need to add a Set to back links,
+ * and some method of determining what is a link we've
+ * already seen (/pages?pageid=515 being notorious for
+ * causing problems with spiders, esp. if the pageid 
+ * is actually dynamic in some way)
+ */
+val linkPattern = Pattern.compile("\\s*(?i)(href|src|action)\\s*=\\s*(\"([^\"]*\")|'[^']*'|([^'\">\\s]+))")
 
-
+def harvestLinks(body: String): Array[(String, String)] = {
+    val matcher = linkPattern.matcher(body)
+    val results = new ListBuffer[(String, String)]
+    while(matcher.find) {
+        // no *real* need to decompose these 
+        // into two values, but I like doing
+        // so on grounds that in doing so we
+        // can see what is being matched,
+        // better than just saying "read the
+        // friendly regex."
+        // matcher.group(0) is both:
+        val linkType = matcher.group(1)
+        val linkValue = matcher.group(2)
+        results += ((linkType, linkValue))
+    }
+    results.toArray
+}
