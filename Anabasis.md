@@ -4,18 +4,18 @@ or, **how I learnt to hate everything, & love better type systems.**
 
 ---
 
-![Violence](/Users/stefan.edwards/Code/xenophon-curryon/exploits.png)
+![Violence](exploits.png)
 
 _Stefan Edwards_ (@lojikil on {github, twitter, lobste.rs, ...})
 https://nvisium.com/about/#StefanEdwards
 
 ---
 	
-![I'm deaf](/Users/stefan.edwards/Code/xenophon-curryon/deaf.jpg)
+![I'm deaf](deaf.jpg)
 
 ---
 
-![I'm from Noo Yawk](/Users/stefan.edwards/Code/xenophon-curryon/nooyawk.png)
+![I'm from Noo Yawk](nooyawk.png)
 
 _Yes, we really tawk liek dis. Wanna fite 'bout it?_
 
@@ -30,6 +30,7 @@ takeaways:
 - whilst linearzing our attack flows
 - resulting in _roughly_ the same code density
 - with better understanding
+- in roughly 1 week's worth of work.
 
 mainly, let's talk tools (and play a CTF)
 
@@ -68,6 +69,14 @@ mainly, let's talk tools (and play a CTF)
 
 - `ToolA | ToolB`
 - < 100 SLoC
+
+## This week:
+
+- DNS enumeration
+- port scanning
+- Web client
+- CSRF PoC generator
+- (simple) Spider
 
 ---
 

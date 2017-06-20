@@ -252,7 +252,8 @@ class Cookie(val name: String = "",
      */
 
 def deflateRequestCookies(cookies: Array[Cookie]): String = {
-    "Cookies: " + cookies.map((x: Cookie) => URLEncoder.encode(x.name, "UTF-8") + "=" + URLEncoder.encode(x.value, "UTF-8")).mkString(";")
+    //println("deflateRequestCookies: " +  cookies)
+    "Cookie: " + cookies.map((x: Cookie) => URLEncoder.encode(x.name, "UTF-8") + "=" + URLEncoder.encode(x.value, "UTF-8")).mkString(";")
 }
 
 def deflateResponseCookie(cookie: Cookie): String = {
@@ -289,7 +290,9 @@ def inflateRequestCookies(rawCookies: String): Option[Array[Cookie]] = {
 
 def inflateResponseCookie(rawCookie: String): Option[Cookie] = {
 
-    if(!rawCookie.startsWith("Set-Cookie:")) {
+    //println("here in inflateResponseCookie?" + rawCookie)
+
+    if(!rawCookie.toLowerCase().startsWith("set-cookie:")) {
         None
     } else {
         val nameStart = rawCookie.indexOf(':')
@@ -438,7 +441,13 @@ def inflateResponse(rawResponse: String): HTTPResponse = {
 
     for(header <- rawHeaders) {
         val tmp = header.split(": ")
+        //println("Response header: " + header)
+        //println("tmp(0): " + tmp(0))
         tmp(0) match {
+            case "Set-cookie" => inflateResponseCookie(header) match {
+                case Some(cookie) => cookies += cookie
+                case None => None
+            }
             case "Set-Cookie" => inflateResponseCookie(header) match {
                 case Some(cookie) => cookies += cookie
                 case None => None
@@ -449,6 +458,7 @@ def inflateResponse(rawResponse: String): HTTPResponse = {
 
     var finalCookies: Option[Array[Cookie]] = None
     if(!cookies.isEmpty) {
+        //println("here?")
         finalCookies = Some(cookies.toArray)  
     }
     new HTTPResponse(statusLine, statusCode, httpMsg, httpVer, headers.toMap, finalCookies, body)
@@ -505,6 +515,7 @@ def doHTTP(svc: Service, method: String, descriptor: String, httpver: String = "
         case None => defaultHeaders
     }
     val req = new HTTPRequest(svc, method, descriptor, Some(headers), qs, cookies, body, httpver)
+    //println("our request: \n" + deflateRequest(req))
     val result = new ListBuffer[String]()
     try {
         val sock = new Socket(address, port)
